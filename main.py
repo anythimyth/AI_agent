@@ -6,11 +6,13 @@ from datetime import datetime
 from google import genai
 from google.genai import types
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Image, Table, TableStyle
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Image, Table, TableStyle, PageBreak
+)
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
-# Configuration API Keys & Telegram (Membaca dari GitHub Secrets)
+# Configuration API Keys & Telegram
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -38,14 +40,13 @@ def generate_market_research_and_content():
     past_topics = [h['topic'] for h in history]
 
     prompt = f"""
-    Kamu adalah pakar pembuatan produk digital premium siap jual.
+    Kamu adalah pakar pembuatan produk digital premium siap jual bernilai tinggi.
     Tugasmu:
     1. Riset 1 ide produk digital laris (Ebook / Cheatsheet / Guide) untuk segmen pekerja kantor, IT support, atau produktivitas.
     2. Hindari topik yang sudah pernah dibuat ini: {json.dumps(past_topics)}
-    3. Buat KONTEN LENGKAP & MENDALAM (MINIMAL 700-1000 KATA).
-       - JANGAN HANYA MEMBUAT OUTLINE ATAU JUDUL BAB!
-       - Berikan contoh prompt asli, template siap pakai, atau instruksi langkah demi langkah yang nyata dan solutif.
-       - Tulis minimal 3 Bab lengkap dengan penjelasannya.
+    3. Buat KONTEN LENGKAP, MENDALAM, DAN STRUKTUR JELAS (MINIMAL 800-1200 KATA).
+       - Tulis minimal 4 BAB/BAGIAN UTAMA. Gunakan penanda jelas seperti "BAB 1: ...", "BAB 2: ...", "BAB 3: ...", "BAB 4: ...".
+       - Setiap bab HARUS berisi penjelasan mendalam, contoh prompt asli siap pakai, template, atau tabel instruksi.
     4. Buat copywriting deskripsi penjualan untuk toko Lynk.id.
 
     Kembalikan output DALAM FORMAT JSON SANGAT KETAT dengan key persis seperti ini:
@@ -53,13 +54,12 @@ def generate_market_research_and_content():
         "judul": "Judul Produk Digital",
         "kategori": "Kategori",
         "alasan_tren": "Alasan singkat kenapa laris",
-        "harga_rekomendasi": "Rp 25.000",
+        "harga_rekomendasi": "Rp 35.000",
         "isi_ebook": "Isi materi lengkap mendalam...",
         "deskripsi_lynk": "Teks deskripsi penjualan Lynk.id"
     }}
     """
 
-    # Menggunakan Gemini 3.5 Flash Lite
     response = client.models.generate_content(
         model='gemini-3.5-flash-lite',
         contents=prompt,
@@ -71,10 +71,10 @@ def generate_market_research_and_content():
     
     return json.loads(response.text.strip())
 
-def generate_image(prompt_text, filename):
+def generate_image(prompt_text, filename, width=800, height=400):
     """Menghasilkan gambar ilustrasi AI visual gratis via Pollinations"""
-    encoded_prompt = urllib.parse.quote(f"Minimalist modern illustration of {prompt_text}, clean design, professional infographic style, high quality")
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=700&height=350&nologo=true"
+    encoded_prompt = urllib.parse.quote(f"Minimalist modern digital artwork of {prompt_text}, vibrant tech aesthetic, high quality illustration, clean ui design")
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
     
     try:
         response = requests.get(image_url, timeout=30)
@@ -83,10 +83,10 @@ def generate_image(prompt_text, filename):
                 f.write(response.content)
             return filename
     except Exception as e:
-        print(f"Gagal generate gambar: {e}")
+        print(f"Gagal generate gambar ({filename}): {e}")
     return None
 
-def create_pdf(filename, title, content):
+def create_pdf(filename, title, category, content, cover_img_path):
     doc = SimpleDocTemplate(
         filename, 
         pagesize=letter,
@@ -96,79 +96,99 @@ def create_pdf(filename, title, content):
     styles = getSampleStyleSheet()
     story = []
 
-    # Palette Warna Premium
-    PRIMARY_COLOR = colors.HexColor("#0F172A")    # Deep Navy/Slate
-    ACCENT_COLOR = colors.HexColor("#2563EB")     # Royal Blue
-    TEXT_COLOR = colors.HexColor("#334155")       # Charcoal Body Text
-    BG_BOX_COLOR = colors.HexColor("#F8FAFC")     # Soft Gray
-    BORDER_COLOR = colors.HexColor("#CBD5E1")     # Light Gray Border
+    # Palette Warna Premium Ebook (Indigo Slate Theme)
+    PRIMARY_COLOR = colors.HexColor("#1E1B4B")   # Dark Indigo
+    ACCENT_COLOR = colors.HexColor("#4F46E5")    # Vibrant Indigo/Violet
+    TEXT_COLOR = colors.HexColor("#334155")      # Charcoal Body
+    BG_BOX_COLOR = colors.HexColor("#F1F5F9")    # Slate Soft Gray
+    BORDER_COLOR = colors.HexColor("#C7D2FE")    # Light Indigo Border
 
-    title_style = ParagraphStyle(
-        'DocTitle', 
-        parent=styles['Heading1'], 
-        fontSize=20, 
-        leading=24, 
-        textColor=PRIMARY_COLOR, 
-        spaceAfter=10
+    # Typography Styling
+    cover_title_style = ParagraphStyle(
+        'CoverTitle', parent=styles['Heading1'], fontSize=24, leading=28, 
+        textColor=PRIMARY_COLOR, spaceAfter=12, alignment=1
     )
-    
+    badge_style = ParagraphStyle(
+        'CoverBadge', parent=styles['Normal'], fontSize=10, leading=12, 
+        textColor=colors.white, alignment=1
+    )
     heading_style = ParagraphStyle(
-        'DocHeading', 
-        parent=styles['Heading2'], 
-        fontSize=13, 
-        leading=17, 
-        textColor=ACCENT_COLOR, 
-        spaceBefore=14,
-        spaceAfter=8
+        'DocHeading', parent=styles['Heading2'], fontSize=14, leading=18, 
+        textColor=ACCENT_COLOR, spaceBefore=14, spaceAfter=8
     )
-
     body_style = ParagraphStyle(
-        'DocBody', 
-        parent=styles['Normal'], 
-        fontSize=9.5, 
-        leading=14.5, 
-        textColor=TEXT_COLOR, 
-        spaceAfter=8
+        'DocBody', parent=styles['Normal'], fontSize=9.5, leading=14.5, 
+        textColor=TEXT_COLOR, spaceAfter=8
     )
-
     box_text_style = ParagraphStyle(
-        'BoxBody', 
-        parent=styles['Normal'], 
-        fontSize=9, 
-        leading=13.5, 
+        'BoxBody', parent=styles['Normal'], fontSize=9, leading=13.5, 
         textColor=PRIMARY_COLOR
     )
 
-    # Header & Divider
-    story.append(Paragraph(title, title_style))
-    story.append(HRFlowable(width="100%", thickness=3, color=ACCENT_COLOR, spaceAfter=15))
+    # -------------------------------------------------------------------------
+    # 1. HALAMAN COVER KHUSUS (COVER PAGE)
+    # -------------------------------------------------------------------------
+    story.append(Spacer(1, 20))
+    
+    # Badge Kategori
+    badge_p = Paragraph(f"<b>EBOOK PANDUAN DIGITAL • {category.upper()}</b>", badge_style)
+    badge_table = Table([[badge_p]], colWidths=[280])
+    badge_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), ACCENT_COLOR),
+        ('PADDING', (0,0), (-1,-1), 6),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    story.append(badge_table)
+    story.append(Spacer(1, 20))
 
+    # Judul Ebook
+    story.append(Paragraph(title, cover_title_style))
+    story.append(Spacer(1, 15))
+    story.append(HRFlowable(width="60%", thickness=3, color=ACCENT_COLOR, spaceAfter=20, hAlign='CENTER'))
+
+    # Gambar Cover Utuh
+    if cover_img_path and os.path.exists(cover_img_path):
+        story.append(Image(cover_img_path, width=480, height=280))
+        story.append(Spacer(1, 20))
+
+    story.append(Paragraph("<i>Panduan Praktis & Template Siap Pakai untuk Produktivitas Kerja</i>", ParagraphStyle('Sub', parent=styles['Normal'], fontSize=11, textColor=TEXT_COLOR, alignment=1)))
+    story.append(PageBreak()) # Pindah ke Halaman Isi
+
+    # -------------------------------------------------------------------------
+    # 2. HALAMAN ISI DENGAN ILUSTRASI PER BAB
+    # -------------------------------------------------------------------------
     chapter_count = 0
 
-    # Parsing Isi Teks
     for paragraph in content.split('\n'):
         text = paragraph.strip()
         if not text:
             continue
             
         safe_text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        clean_upper = safe_text.upper()
         
-        # Deteksi Header / Bab
-        if safe_text.startswith(('Bab', 'BAB', 'Chapter', '1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')):
-            chapter_count += 1
-            story.append(Spacer(1, 8))
-            story.append(Paragraph(safe_text, heading_style))
-            story.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=10))
+        # Deteksi Header / Bab (Lebih Fleksibel)
+        is_chapter = any(clean_upper.startswith(prefix) for prefix in ['BAB', 'CHAPTER', 'BAGIAN']) or \
+                     (len(safe_text) > 2 and safe_text[0].isdigit() and safe_text[1] in ['.', ' '])
 
-            # Tambah Gambar Ilustrasi Bab
-            img_filename = f"chapter_{chapter_count}.jpg"
-            img_path = generate_image(f"{title} - {safe_text}", img_filename)
-            if img_path and os.path.exists(img_path):
-                story.append(Image(img_path, width=540, height=200))
+        if is_chapter:
+            chapter_count += 1
+            if chapter_count > 1:
                 story.append(Spacer(1, 10))
 
-        # Format Kotak Sorotan (Callout Box) untuk Template/Prompt
-        elif safe_text.startswith(('-', 'Prompt:', 'Template:', 'Catatan:', 'Tips:')):
+            story.append(Paragraph(safe_text, heading_style))
+            story.append(HRFlowable(width="100%", thickness=1.5, color=BORDER_COLOR, spaceAfter=10))
+
+            # Generate Gambar Ilustrasi Banner untuk Setiap Bab Baru
+            img_filename = f"chapter_banner_{chapter_count}.jpg"
+            img_path = generate_image(f"{title} {safe_text}", img_filename, width=700, height=250)
+            if img_path and os.path.exists(img_path):
+                story.append(Image(img_path, width=540, height=180))
+                story.append(Spacer(1, 12))
+
+        # Format Kotak Sorotan (Callout Box) untuk Prompt / Template / Tips
+        elif safe_text.startswith(('-', 'Prompt:', 'Template:', 'Catatan:', 'Tips:', 'Langkah:')):
             p_box = Paragraph(safe_text, box_text_style)
             box_table = Table([[p_box]], colWidths=[540])
             box_table.setStyle(TableStyle([
@@ -186,8 +206,8 @@ def create_pdf(filename, title, content):
     doc.build(story)
 
 def generate_cover_image(title, filename="cover.jpg"):
-    prompt = f"Professional ebook cover mockup for '{title}', minimalist modern tech style, 3d book presentation, high resolution"
-    return generate_image(prompt, filename)
+    prompt = f"Modern professional book cover mockup for '{title}', minimalist tech aesthetic, vibrant color gradient, 3d render"
+    return generate_image(prompt, filename, width=800, height=500)
 
 def send_to_telegram(pdf_path, cover_path, data):
     caption = f"🚀 *PRODUK DIGITAL BARU SIAP UPLOAD*\n\n" \
@@ -219,19 +239,21 @@ def send_to_telegram(pdf_path, cover_path, data):
         }, files={"document": f})
 
 if __name__ == "__main__":
-    print("AI Agent sedang bekerja melakukan riset & generasi produk...")
+    print("AI Agent sedang bekerja membuat produk digital visual...")
     result = generate_market_research_and_content()
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     pdf_filename = f"Produk_{timestamp}.pdf"
     cover_filename = f"Cover_{timestamp}.jpg"
     
-    # Generate File & PDF Visual
-    create_pdf(pdf_filename, result['judul'], result['isi_ebook'])
+    # 1. Generate Cover Image Utama
     cover_file = generate_cover_image(result['judul'], cover_filename)
     
-    # Send ke Telegram
+    # 2. Generate PDF Visual Lengkap (dengan Cover Page + Gambar per Bab)
+    create_pdf(pdf_filename, result['judul'], result['kategori'], result['isi_ebook'], cover_file)
+    
+    # 3. Send All to Telegram
     send_to_telegram(pdf_filename, cover_file, result)
     save_topic_history(result['judul'])
     
-    print("Selesai! PDF Visual, Cover, dan Deskripsi telah dikirim ke Telegram.")
+    print("Selesai! PDF Visual Premium, Cover Page, dan Deskripsi telah dikirim ke Telegram.")
