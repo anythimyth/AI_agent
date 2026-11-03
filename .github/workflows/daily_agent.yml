@@ -2,9 +2,12 @@ name: Daily AI Digital Product Agent
 
 on:
   schedule:
-    # Berjalan otomatis setiap hari jam 07:00 WIB (00:00 UTC)
     - cron: '0 0 * * *'
-  workflow_dispatch: # Memungkinkan tombol 'Run workflow' manual di GitHub
+  workflow_dispatch:
+
+# TAMBAHKAN DUA BARIS INI (Izin Tulis):
+permissions:
+  contents: write
 
 jobs:
   build-and-run:
