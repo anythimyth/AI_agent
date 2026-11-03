@@ -139,44 +139,44 @@ def create_pdf(filename, title, category, content, cover_img_path, is_coloring=F
     doc.build(story)
 
 # =============================================================================
-# PRODUK 1: KREATIF / COLORING / EBOOK GENERAL
+# PRODUK 1: PDF EBOOK / GUIDE / WORK HACKS
 # =============================================================================
-def generate_product_1():
+def generate_ebook_product():
     history = get_topic_history()
     past_topics = [h['topic'] for h in history]
     
-    themes = ["buku_mewarnai", "work_hacks", "education", "digital_art"]
+    themes = ["work_hacks", "it_support_guide", "education", "productivity_hacks"]
     selected_theme = random.choice(themes)
 
     prompt = f"""
-    Kamu adalah pakar pembuatan produk digital kreatif.
-    Riset ide berdasarkan tema: {selected_theme}.
+    Kamu adalah pakar pembuatan Ebook / Panduan Digital Edukatif.
+    Riset 1 ide Ebook / Guide laris di bawah tema: {selected_theme}.
     Hindari topik ini: {json.dumps(past_topics)}.
 
-    - Jika 'buku_mewarnai': Buat minimal 4 Halaman Objek Mewarnai (contoh format: "HALAMAN 1: [Objek & Cerita Ringkas]").
-    - Jika tema lain: Buat KONTEN LENGKAP 800-1200 KATA minimal 4 BAB.
+    Tugasmu:
+    - Buat KONTEN LENGKAP & MENDALAM (800-1200 KATA) minimal 4 BAB.
+    - Berikan contoh prompt asli, template siap pakai, atau langkah-langkah praktis.
 
     Format JSON ketat:
     {{
-        "judul": "Judul Produk Kreatif",
+        "judul": "Judul Ebook / Panduan",
         "kategori": "{selected_theme.replace('_', ' ').title()}",
-        "alasan_tren": "Alasan singkat",
-        "harga_rekomendasi": "Rp 15.000 - Rp 25.000",
-        "isi_ebook": "Teks lengkap bab/halaman...",
-        "deskripsi_lynk": "Teks deskripsi Lynk.id",
-        "is_coloring_book": {"true" if selected_theme == "buku_mewarnai" else "false"}
+        "alasan_tren": "Alasan singkat kenapa laris",
+        "harga_rekomendasi": "Rp 25.000",
+        "isi_ebook": "Isi materi lengkap mendalam...",
+        "deskripsi_lynk": "Teks deskripsi penjualan Lynk.id"
     }}
     """
     response = client.models.generate_content(
         model='gemini-3.5-flash-lite', contents=prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.7)
+        config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.6)
     )
     return json.loads(response.text.strip())
 
 # =============================================================================
-# PRODUK 2: SPREADSHEET & CALCULATOR LOGIC
+# PRODUK 2: PDF PANDUAN SPREADSHEET & CALCULATOR LOGIC
 # =============================================================================
-def generate_product_2():
+def generate_spreadsheet_product():
     history = get_topic_history()
     past_topics = [h['topic'] for h in history]
     
@@ -188,7 +188,7 @@ def generate_product_2():
     Riset 1 ide template di bawah sub-tema: {selected_theme}.
     Hindari topik ini: {json.dumps(past_topics)}.
 
-    Buat Panduan Struktur Kolom + Rumus Formula Excel/Google Sheets Lengkap + Cara Menggunakannya.
+    Buat Panduan Struktur Kolom + Rumus Formula Excel/Google Sheets Lengkap + Cara Menggunakannya secara mendalam.
 
     Format JSON ketat:
     {{
@@ -196,7 +196,7 @@ def generate_product_2():
         "kategori": "{selected_theme.replace('_', ' ').title()}",
         "alasan_tren": "Alasan singkat",
         "harga_rekomendasi": "Rp 20.000 - Rp 35.000",
-        "struktur_rumus": "Panduan struktur tabel dan rumus Excel...",
+        "struktur_rumus": "Panduan struktur tabel dan rumus Excel (VLOOKUP, IF, QUERY, INDEX/MATCH)...",
         "deskripsi_lynk": "Teks deskripsi Lynk.id"
     }}
     """
@@ -207,37 +207,36 @@ def generate_product_2():
     return json.loads(response.text.strip())
 
 # =============================================================================
-# PRODUK 3: PROMPT PACK AI / CHEATSHEET SCRIPT (BARU)
+# PRODUK 3: PDF BUKU MEWARNAI (COLORING BOOK)
 # =============================================================================
-def generate_product_3():
+def generate_coloring_product():
     history = get_topic_history()
     past_topics = [h['topic'] for h in history]
-    
-    themes = ["prompt_chatgpt_admin", "prompt_midjourney_desain", "script_otomatisasi_python", "cheatsheet_copywriting_sales"]
-    selected_theme = random.choice(themes)
 
     prompt = f"""
-    Kamu adalah pakar AI Engineering & Automation Scripting.
-    Riset 1 ide Prompt Pack / Script Otomatisasi di bawah tema: {selected_theme}.
+    Kamu adalah pembuat Buku Mewarnai Digital (Coloring Book) kreatif untuk anak/dewasa.
+    Riset 1 tema Buku Mewarnai yang menarik (misal: Hewan Laut Unik, Dinosaurus Lucu, Robot Masa Depan, Kendaraan, atau Mandala Relaksasi).
     Hindari topik ini: {json.dumps(past_topics)}.
 
     Tugasmu:
-    - Buat KUMPULAN 15-20 PROMPT AI SIAP PAKAI atau SCRIPT OTOMATISASI LENGKAP dengan parameter variabel yang bisa di-copy-paste langsung.
-    - Berikan instruksi cara menggunakannya.
+    - Buat struktur 4 Halaman Mewarnai. 
+    - Format teks 'isi_ebook' HARUS diawali penanda halaman, contoh: 
+      "HALAMAN 1: [Deskripsi objek yang diwarnai & cerita/fakta unik singkat]"
+      "HALAMAN 2: [Deskripsi objek yang diwarnai & cerita/fakta unik singkat]" ...dst.
 
     Format JSON ketat:
     {{
-        "judul": "Judul Prompt Pack / Script",
-        "kategori": "{selected_theme.replace('_', ' ').title()}",
-        "alasan_tren": "Alasan singkat",
-        "harga_rekomendasi": "Rp 25.000",
-        "isi_prompt_script": "Daftar prompt / script siap pakai...",
-        "deskripsi_lynk": "Teks deskripsi Lynk.id"
+        "judul": "Judul Buku Mewarnai",
+        "kategori": "Buku Mewarnai Digital",
+        "alasan_tren": "Alasan singkat kenapa laris",
+        "harga_rekomendasi": "Rp 15.000 - Rp 25.000",
+        "isi_ebook": "Teks struktur halaman mewarnai...",
+        "deskripsi_lynk": "Teks deskripsi Lynk.id yang menarik pembeli/orang tua"
     }}
     """
     response = client.models.generate_content(
         model='gemini-3.5-flash-lite', contents=prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.6)
+        config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.7)
     )
     return json.loads(response.text.strip())
 
@@ -275,44 +274,42 @@ if __name__ == "__main__":
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
     # -------------------------------------------------------------------------
-    # PRODUK 1: KREATIF / COLORING / EBOOK GENERAL
+    # PRODUK 1: PDF EBOOK / GUIDE
     # -------------------------------------------------------------------------
-    print("AI Agent membuat Produk 1 (Ebook / Kreatif)...")
-    res_p1 = generate_product_1()
-    pdf_p1 = f"Prod1_Kreatif_{timestamp}.pdf"
+    print("AI Agent membuat Produk 1 (PDF Ebook)...")
+    res_p1 = generate_ebook_product()
+    pdf_p1 = f"Prod1_Ebook_{timestamp}.pdf"
     cover_p1 = f"Cover_P1_{timestamp}.jpg"
-    is_coloring_p1 = (res_p1.get("is_coloring_book") == True or res_p1.get("is_coloring_book") == "true")
-    c_style1 = "coloring" if is_coloring_p1 else "normal"
     
-    c_file1 = generate_image(res_p1['judul'], cover_p1, style_type=c_style1, width=800, height=500)
-    create_pdf(pdf_p1, res_p1['judul'], res_p1['kategori'], res_p1['isi_ebook'], c_file1, is_coloring=is_coloring_p1)
-    send_to_telegram(pdf_p1, c_file1, res_p1, tag="PRODUK 1: KREATIF")
+    c_file1 = generate_image(res_p1['judul'], cover_p1, style_type="normal", width=800, height=500)
+    create_pdf(pdf_p1, res_p1['judul'], res_p1['kategori'], res_p1['isi_ebook'], c_file1, is_coloring=False)
+    send_to_telegram(pdf_p1, c_file1, res_p1, tag="PRODUK 1: PDF EBOOK")
     save_topic_history(res_p1['judul'], res_p1['kategori'])
     
     # -------------------------------------------------------------------------
-    # PRODUK 2: SPREADSHEET & CALCULATOR LOGIC
+    # PRODUK 2: PDF SPREADSHEET & CALCULATOR LOGIC
     # -------------------------------------------------------------------------
-    print("AI Agent membuat Produk 2 (Spreadsheet)...")
-    res_p2 = generate_product_2()
+    print("AI Agent membuat Produk 2 (PDF Spreadsheet Logic)...")
+    res_p2 = generate_spreadsheet_product()
     pdf_p2 = f"Prod2_Spreadsheet_{timestamp}.pdf"
     cover_p2 = f"Cover_P2_{timestamp}.jpg"
     
     c_file2 = generate_image(res_p2['judul'], cover_p2, style_type="normal", width=800, height=500)
     create_pdf(pdf_p2, res_p2['judul'], res_p2['kategori'], res_p2['struktur_rumus'], c_file2, is_coloring=False)
-    send_to_telegram(pdf_p2, c_file2, res_p2, tag="PRODUK 2: SPREADSHEET")
+    send_to_telegram(pdf_p2, c_file2, res_p2, tag="PRODUK 2: PDF SPREADSHEET")
     save_topic_history(res_p2['judul'], res_p2['kategori'])
 
     # -------------------------------------------------------------------------
-    # PRODUK 3: PROMPT PACK AI / SCRIPT OTOMATISASI (BARU)
+    # PRODUK 3: PDF BUKU MEWARNAI (COLORING BOOK)
     # -------------------------------------------------------------------------
-    print("AI Agent membuat Produk 3 (Prompt Pack / Script)...")
-    res_p3 = generate_product_3()
-    pdf_p3 = f"Prod3_PromptPack_{timestamp}.pdf"
+    print("AI Agent membuat Produk 3 (PDF Buku Mewarnai)...")
+    res_p3 = generate_coloring_product()
+    pdf_p3 = f"Prod3_Coloring_{timestamp}.pdf"
     cover_p3 = f"Cover_P3_{timestamp}.jpg"
     
-    c_file3 = generate_image(res_p3['judul'], cover_p3, style_type="normal", width=800, height=500)
-    create_pdf(pdf_p3, res_p3['judul'], res_p3['kategori'], res_p3['isi_prompt_script'], c_file3, is_coloring=False)
-    send_to_telegram(pdf_p3, c_file3, res_p3, tag="PRODUK 3: PROMPT & SCRIPT")
+    c_file3 = generate_image(res_p3['judul'], cover_p3, style_type="coloring", width=800, height=500)
+    create_pdf(pdf_p3, res_p3['judul'], res_p3['kategori'], res_p3['isi_ebook'], c_file3, is_coloring=True)
+    send_to_telegram(pdf_p3, c_file3, res_p3, tag="PRODUK 3: PDF MEWARNAI")
     save_topic_history(res_p3['judul'], res_p3['kategori'])
 
-    print("Selesai! 3 Produk Digital berbeda berhasil dikirim ke Telegram.")
+    print("Selesai! 3 Produk PDF (Ebook, Spreadsheet, dan Buku Mewarnai) berhasil dikirim ke Telegram.")
