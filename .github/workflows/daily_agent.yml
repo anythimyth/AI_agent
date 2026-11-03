@@ -1,0 +1,39 @@
+name: Daily AI Digital Product Agent
+
+on:
+  schedule:
+    # Berjalan otomatis setiap hari jam 07:00 WIB (00:00 UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Memungkinkan tombol 'Run workflow' manual di GitHub
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run AI Agent
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
+
+      - name: Commit Updated Topic History
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add history_topics.json
+          git commit -m "Update history topics" || exit 0
+          git push
