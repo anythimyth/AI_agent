@@ -3,18 +3,19 @@ import json
 import urllib.parse
 import requests
 from datetime import datetime
-from groq import Groq
+from google import genai
+from google.genai import types
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
-# Configuration API Keys & Telegram
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+# Configuration API Keys & Telegram (Membaca dari GitHub Secrets)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-client = Groq(api_key=GROQ_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 LOG_FILE = "history_topics.json"
 
 def get_topic_history():
@@ -40,12 +41,12 @@ def generate_market_research_and_content():
     Kamu adalah pakar pembuatan produk digital premium siap jual.
     Tugasmu:
     1. Riset 1 ide produk digital laris (Ebook / Cheatsheet / Guide) untuk segmen pekerja kantor, IT support, atau produktivitas.
-    2. Hindari topik ini: {json.dumps(past_topics)}
-    3. Buat KONTEN LENGKAP & MENDALAM (MINIMAL 600-900 KATA).
+    2. Hindari topik yang sudah pernah dibuat ini: {json.dumps(past_topics)}
+    3. Buat KONTEN LENGKAP & MENDALAM (MINIMAL 700-1000 KATA).
        - JANGAN HANYA MEMBUAT OUTLINE ATAU JUDUL BAB!
        - Berikan contoh prompt asli, template siap pakai, atau instruksi langkah demi langkah yang nyata dan solutif.
        - Tulis minimal 3 Bab lengkap dengan penjelasannya.
-    4. Buat copywriting deskripsi penjualan untuk Lynk.id.
+    4. Buat copywriting deskripsi penjualan untuk toko Lynk.id.
 
     Kembalikan output DALAM FORMAT JSON SANGAT KETAT dengan key persis seperti ini:
     {{
@@ -58,19 +59,20 @@ def generate_market_research_and_content():
     }}
     """
 
-    response = client.chat.completions.create(
-        model="qwen/qwen3.8-27b",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.5,
-        max_tokens=4096,
-        response_format={"type": "json_object"}
+    # Menggunakan Gemini 3.5 Flash Lite
+    response = client.models.generate_content(
+        model='gemini-3.5-flash-lite',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.5
+        )
     )
     
-    output_text = response.choices[0].message.content.strip()
-    return json.loads(output_text)
+    return json.loads(response.text.strip())
 
 def generate_image(prompt_text, filename):
-    """Menghasilkan gambar visual berbasis prompt AI secara gratis"""
+    """Menghasilkan gambar ilustrasi AI visual gratis via Pollinations"""
     encoded_prompt = urllib.parse.quote(f"Minimalist modern illustration of {prompt_text}, clean design, professional infographic style, high quality")
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=700&height=350&nologo=true"
     
@@ -94,19 +96,18 @@ def create_pdf(filename, title, content):
     styles = getSampleStyleSheet()
     story = []
 
-    # Palette Warna Premium Produk Digital
-    PRIMARY_COLOR = colors.HexColor("#0F172A")    # Deep Slate / Navy
-    ACCENT_COLOR = colors.HexColor("#2563EB")     # Vibrant Royal Blue
+    # Palette Warna Premium
+    PRIMARY_COLOR = colors.HexColor("#0F172A")    # Deep Navy/Slate
+    ACCENT_COLOR = colors.HexColor("#2563EB")     # Royal Blue
     TEXT_COLOR = colors.HexColor("#334155")       # Charcoal Body Text
-    BG_BOX_COLOR = colors.HexColor("#F8FAFC")     # Soft Gray background
-    BORDER_COLOR = colors.HexColor("#CBD5E1")     # Light Border Gray
+    BG_BOX_COLOR = colors.HexColor("#F8FAFC")     # Soft Gray
+    BORDER_COLOR = colors.HexColor("#CBD5E1")     # Light Gray Border
 
-    # Typography Styling
     title_style = ParagraphStyle(
         'DocTitle', 
         parent=styles['Heading1'], 
-        fontSize=22, 
-        leading=26, 
+        fontSize=20, 
+        leading=24, 
         textColor=PRIMARY_COLOR, 
         spaceAfter=10
     )
@@ -117,7 +118,7 @@ def create_pdf(filename, title, content):
         fontSize=13, 
         leading=17, 
         textColor=ACCENT_COLOR, 
-        spaceBefore=16,
+        spaceBefore=14,
         spaceAfter=8
     )
 
@@ -138,13 +139,13 @@ def create_pdf(filename, title, content):
         textColor=PRIMARY_COLOR
     )
 
-    # 1. Header Judul + Line Accent
+    # Header & Divider
     story.append(Paragraph(title, title_style))
     story.append(HRFlowable(width="100%", thickness=3, color=ACCENT_COLOR, spaceAfter=15))
 
     chapter_count = 0
 
-    # 2. Parse Content & Inject Dynamic Visuals
+    # Parsing Isi Teks
     for paragraph in content.split('\n'):
         text = paragraph.strip()
         if not text:
@@ -159,14 +160,14 @@ def create_pdf(filename, title, content):
             story.append(Paragraph(safe_text, heading_style))
             story.append(HRFlowable(width="100%", thickness=1, color=BORDER_COLOR, spaceAfter=10))
 
-            # Sisipkan Gambar Ilustrasi Setiap Bab Baru
+            # Tambah Gambar Ilustrasi Bab
             img_filename = f"chapter_{chapter_count}.jpg"
             img_path = generate_image(f"{title} - {safe_text}", img_filename)
             if img_path and os.path.exists(img_path):
                 story.append(Image(img_path, width=540, height=200))
                 story.append(Spacer(1, 10))
 
-        # Format Kotak Sorotan (Callout Box) untuk Prompt / Template Siap Pakai
+        # Format Kotak Sorotan (Callout Box) untuk Template/Prompt
         elif safe_text.startswith(('-', 'Prompt:', 'Template:', 'Catatan:', 'Tips:')):
             p_box = Paragraph(safe_text, box_text_style)
             box_table = Table([[p_box]], colWidths=[540])
@@ -196,14 +197,14 @@ def send_to_telegram(pdf_path, cover_path, data):
               f"💰 *Harga:* {data['harga_rekomendasi']}\n\n" \
               f"📝 *Deskripsi Lynk.id (Copy-Paste):*\n{data['deskripsi_lynk']}"
 
-    # Send Info
+    # 1. Kirim Pesan Teks
     requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", data={
         "chat_id": TELEGRAM_CHAT_ID,
         "text": caption,
         "parse_mode": "Markdown"
     })
 
-    # Send Cover Photo
+    # 2. Kirim Gambar Cover
     if cover_path and os.path.exists(cover_path):
         with open(cover_path, 'rb') as f:
             requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", data={
@@ -211,25 +212,25 @@ def send_to_telegram(pdf_path, cover_path, data):
                 "caption": "🖼️ Cover Mockup Lynk.id"
             }, files={"photo": f})
 
-    # Send Full PDF
+    # 3. Kirim File PDF Utama
     with open(pdf_path, 'rb') as f:
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument", data={
             "chat_id": TELEGRAM_CHAT_ID
         }, files={"document": f})
 
 if __name__ == "__main__":
-    print("AI Agent sedang bekerja melakukan riset, generasi materi & gambar visual...")
+    print("AI Agent sedang bekerja melakukan riset & generasi produk...")
     result = generate_market_research_and_content()
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     pdf_filename = f"Produk_{timestamp}.pdf"
     cover_filename = f"Cover_{timestamp}.jpg"
     
-    # Generate Full PDF & Images
+    # Generate File & PDF Visual
     create_pdf(pdf_filename, result['judul'], result['isi_ebook'])
     cover_file = generate_cover_image(result['judul'], cover_filename)
     
-    # Send Output
+    # Send ke Telegram
     send_to_telegram(pdf_filename, cover_file, result)
     save_topic_history(result['judul'])
     
