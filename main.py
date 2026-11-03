@@ -36,25 +36,25 @@ def save_topic_history(topic, product_type):
     with open(LOG_FILE, "w") as f:
         json.dump(history, f, indent=2)
 
-def generate_image(prompt_text, filename, style_type="normal", width=800, height=500):
+def generate_image(prompt_text, filename, style_type="normal", width=800, height=600):
     """Menghasilkan gambar ilustrasi visual gratis via Pollinations"""
     if style_type == "coloring":
         base_prompt = (
-            f"Simple black and white coloring page of {prompt_text}, "
-            "vibrant clean outline vector, no shading, no colors, kid-friendly "
-            "and adult-friendly bold lines, high resolution, coloring book style, on plain white background"
+            f"Black and white coloring book page of {prompt_text}, "
+            "clean thick outline vector line art, no color, no shading, "
+            "white background, high quality coloring page style"
         )
     else:
         base_prompt = (
-            f"Professional modern product cover illustration for '{prompt_text}', "
-            "clean aesthetic, highly detailed, vibrant digital artwork"
+            f"Professional digital cover illustration for '{prompt_text}', "
+            "modern clean design, high resolution 3d graphic"
         )
         
     encoded_prompt = urllib.parse.quote(base_prompt)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
     
     try:
-        response = requests.get(image_url, timeout=35)
+        response = requests.get(image_url, timeout=40)
         if response.status_code == 200:
             with open(filename, 'wb') as f:
                 f.write(response.content)
@@ -96,7 +96,7 @@ def create_pdf(filename, title, category, content, cover_img_path, is_coloring=F
         story.append(Image(cover_img_path, width=460, height=260))
         story.append(Spacer(1, 15))
 
-    sub_caption = "Buku Mewarnai Interaktif yang Bisa Diprint Berulang Kali" if is_coloring else "Panduan Praktis & Template Siap Pakai"
+    sub_caption = "Buku Mewarnai Interaktif Siap Print" if is_coloring else "Panduan Praktis & Template Siap Pakai"
     story.append(Paragraph(f"<i>{sub_caption}</i>", ParagraphStyle('Sub', parent=styles['Normal'], fontSize=10, textColor=TEXT_COLOR, alignment=1)))
     story.append(PageBreak())
 
@@ -108,22 +108,29 @@ def create_pdf(filename, title, category, content, cover_img_path, is_coloring=F
         safe_text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
         clean_upper = safe_text.upper()
         
+        # Deteksi Bab/Halaman
         is_chapter = any(clean_upper.startswith(prefix) for prefix in ['BAB', 'CHAPTER', 'BAGIAN', 'HALAMAN', 'MODUL']) or (len(safe_text) > 2 and safe_text[0].isdigit() and safe_text[1] in ['.', ' '])
 
         if is_chapter:
             chapter_count += 1
-            if chapter_count > 1: story.append(Spacer(1, 10))
+            if chapter_count > 1 and not is_coloring:
+                story.append(Spacer(1, 10))
+
             story.append(Paragraph(safe_text, heading_style))
             story.append(HRFlowable(width="100%", thickness=1.5, color=BORDER_COLOR, spaceAfter=10))
 
             img_filename = f"ch_img_{chapter_count}.jpg"
             img_style = "coloring" if is_coloring else "normal"
+            
+            # Ukuran presisi gambar mewarnai agar tampil penuh
             img_w, img_h = (480, 480) if is_coloring else (540, 170)
             
             img_path = generate_image(f"{title} - {safe_text}", img_filename, style_type=img_style, width=img_w, height=img_h)
             if img_path and os.path.exists(img_path):
                 story.append(Image(img_path, width=img_w, height=img_h))
                 story.append(Spacer(1, 10))
+                
+                # Khusus buku mewarnai: Pindah halaman otomatis agar tiap gambar terpisah di 1 lembar utuh
                 if is_coloring:
                     story.append(PageBreak())
 
@@ -139,7 +146,7 @@ def create_pdf(filename, title, category, content, cover_img_path, is_coloring=F
     doc.build(story)
 
 # =============================================================================
-# PRODUK 1: PDF EBOOK / GUIDE / WORK HACKS
+# PRODUK 1: PDF EBOOK / GUIDE (MATERI MENDALAM)
 # =============================================================================
 def generate_ebook_product():
     history = get_topic_history()
@@ -149,21 +156,22 @@ def generate_ebook_product():
     selected_theme = random.choice(themes)
 
     prompt = f"""
-    Kamu adalah pakar pembuatan Ebook / Panduan Digital Edukatif.
-    Riset 1 ide Ebook / Guide laris di bawah tema: {selected_theme}.
+    Kamu adalah penulis buku digital profesional.
+    Buatlah Ebook/Panduan LENGKAP & SANGAT DETAIL tentang: {selected_theme}.
     Hindari topik ini: {json.dumps(past_topics)}.
 
-    Tugasmu:
-    - Buat KONTEN LENGKAP & MENDALAM (800-1200 KATA) minimal 4 BAB.
-    - Berikan contoh prompt asli, template siap pakai, atau langkah-langkah praktis.
+    SYARAT WAJIB ISI KONTEN (MINIMAL 1000 - 1500 KATA):
+    - Tulis minimal 5 BAB/BAGIAN LENGKAP.
+    - Jangan hanya garis besar! Jelaskan alasan, langkah teknis, contoh studi kasus, dan solusinya secara rinci.
+    - Sertakan contoh prompt AI, instruksi langkah-demi-langkah, atau tabel panduan di tiap bab.
 
     Format JSON ketat:
     {{
-        "judul": "Judul Ebook / Panduan",
+        "judul": "Judul Ebook Lengkap",
         "kategori": "{selected_theme.replace('_', ' ').title()}",
         "alasan_tren": "Alasan singkat kenapa laris",
         "harga_rekomendasi": "Rp 25.000",
-        "isi_ebook": "Isi materi lengkap mendalam...",
+        "isi_ebook": "Teks naskah panjang mendalam minimal 1000 kata...",
         "deskripsi_lynk": "Teks deskripsi penjualan Lynk.id"
     }}
     """
@@ -174,7 +182,7 @@ def generate_ebook_product():
     return json.loads(response.text.strip())
 
 # =============================================================================
-# PRODUK 2: PDF PANDUAN SPREADSHEET & CALCULATOR LOGIC
+# PRODUK 2: PDF PANDUAN SPREADSHEET & CALCULATOR LOGIC (LENGKAP)
 # =============================================================================
 def generate_spreadsheet_product():
     history = get_topic_history()
@@ -185,18 +193,21 @@ def generate_spreadsheet_product():
 
     prompt = f"""
     Kamu adalah pakar Template Spreadsheet & Kalkulator Bisnis.
-    Riset 1 ide template di bawah sub-tema: {selected_theme}.
+    Riset 1 ide template lengkap di bawah sub-tema: {selected_theme}.
     Hindari topik ini: {json.dumps(past_topics)}.
 
-    Buat Panduan Struktur Kolom + Rumus Formula Excel/Google Sheets Lengkap + Cara Menggunakannya secara mendalam.
+    SYARAT WAJIB ISI KONTEN (SANGAT DETAIL):
+    - Jelaskan Struktur Seluruh Sheet (Minimal 3 Sheet: Dashboard, Input Data, Laporan).
+    - Berikan RUMUS KUNCI LENGKAP (VLOOKUP, IF, SUMIFS, QUERY, INDEX/MATCH) beserta penjelasan cara memasang dan menggunakannya.
+    - Berikan panduan langkah demi langkah cara membuat dari awal hingga siap pakai.
 
     Format JSON ketat:
     {{
         "judul": "Judul Template Spreadsheet",
         "kategori": "{selected_theme.replace('_', ' ').title()}",
         "alasan_tren": "Alasan singkat",
-        "harga_rekomendasi": "Rp 20.000 - Rp 35.000",
-        "struktur_rumus": "Panduan struktur tabel dan rumus Excel (VLOOKUP, IF, QUERY, INDEX/MATCH)...",
+        "harga_rekomendasi": "Rp 25.000",
+        "struktur_rumus": "Panduan rinci struktur tabel dan rumus Excel/Google Sheets...",
         "deskripsi_lynk": "Teks deskripsi Lynk.id"
     }}
     """
@@ -207,31 +218,29 @@ def generate_spreadsheet_product():
     return json.loads(response.text.strip())
 
 # =============================================================================
-# PRODUK 3: PDF BUKU MEWARNAI (COLORING BOOK)
+# PRODUK 3: PDF BUKU MEWARNAI (COLORING BOOK DENGAN GAMBAR OUTLINE)
 # =============================================================================
 def generate_coloring_product():
     history = get_topic_history()
     past_topics = [h['topic'] for h in history]
 
     prompt = f"""
-    Kamu adalah pembuat Buku Mewarnai Digital (Coloring Book) kreatif untuk anak/dewasa.
-    Riset 1 tema Buku Mewarnai yang menarik (misal: Hewan Laut Unik, Dinosaurus Lucu, Robot Masa Depan, Kendaraan, atau Mandala Relaksasi).
+    Kamu adalah pembuat Buku Mewarnai Digital (Coloring Book).
+    Riset 1 tema Buku Mewarnai menarik (misal: Hewan Laut Unik, Dinosaurus Lucu, Robot Masa Depan, Kendaraan, atau Mandala Relaksasi).
     Hindari topik ini: {json.dumps(past_topics)}.
 
     Tugasmu:
-    - Buat struktur 4 Halaman Mewarnai. 
-    - Format teks 'isi_ebook' HARUS diawali penanda halaman, contoh: 
-      "HALAMAN 1: [Deskripsi objek yang diwarnai & cerita/fakta unik singkat]"
-      "HALAMAN 2: [Deskripsi objek yang diwarnai & cerita/fakta unik singkat]" ...dst.
+    - Buat struktur 5 HALAMAN MEWARNAI. 
+    - Setiap halaman HARUS persis diawali format: "HALAMAN [Nomor]: [Nama Objek yang Diwarnai] - [Cerita/Fakta Unik Singkat]".
 
     Format JSON ketat:
     {{
         "judul": "Judul Buku Mewarnai",
         "kategori": "Buku Mewarnai Digital",
         "alasan_tren": "Alasan singkat kenapa laris",
-        "harga_rekomendasi": "Rp 15.000 - Rp 25.000",
-        "isi_ebook": "Teks struktur halaman mewarnai...",
-        "deskripsi_lynk": "Teks deskripsi Lynk.id yang menarik pembeli/orang tua"
+        "harga_rekomendasi": "Rp 15.000",
+        "isi_ebook": "HALAMAN 1: ...\\nHALAMAN 2: ...\\nHALAMAN 3: ...\\nHALAMAN 4: ...\\nHALAMAN 5: ...",
+        "deskripsi_lynk": "Teks deskripsi Lynk.id yang menarik orang tua/pembeli"
     }}
     """
     response = client.models.generate_content(
@@ -273,43 +282,34 @@ def send_to_telegram(pdf_path, cover_path, data, tag="PRODUK"):
 if __name__ == "__main__":
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
-    # -------------------------------------------------------------------------
-    # PRODUK 1: PDF EBOOK / GUIDE
-    # -------------------------------------------------------------------------
-    print("AI Agent membuat Produk 1 (PDF Ebook)...")
+    # PRODUK 1: PDF EBOOK
+    print("AI Agent membuat Produk 1 (PDF Ebook Panjang)...")
     res_p1 = generate_ebook_product()
     pdf_p1 = f"Prod1_Ebook_{timestamp}.pdf"
     cover_p1 = f"Cover_P1_{timestamp}.jpg"
-    
     c_file1 = generate_image(res_p1['judul'], cover_p1, style_type="normal", width=800, height=500)
     create_pdf(pdf_p1, res_p1['judul'], res_p1['kategori'], res_p1['isi_ebook'], c_file1, is_coloring=False)
     send_to_telegram(pdf_p1, c_file1, res_p1, tag="PRODUK 1: PDF EBOOK")
     save_topic_history(res_p1['judul'], res_p1['kategori'])
     
-    # -------------------------------------------------------------------------
-    # PRODUK 2: PDF SPREADSHEET & CALCULATOR LOGIC
-    # -------------------------------------------------------------------------
+    # PRODUK 2: PDF SPREADSHEET
     print("AI Agent membuat Produk 2 (PDF Spreadsheet Logic)...")
     res_p2 = generate_spreadsheet_product()
     pdf_p2 = f"Prod2_Spreadsheet_{timestamp}.pdf"
     cover_p2 = f"Cover_P2_{timestamp}.jpg"
-    
     c_file2 = generate_image(res_p2['judul'], cover_p2, style_type="normal", width=800, height=500)
     create_pdf(pdf_p2, res_p2['judul'], res_p2['kategori'], res_p2['struktur_rumus'], c_file2, is_coloring=False)
     send_to_telegram(pdf_p2, c_file2, res_p2, tag="PRODUK 2: PDF SPREADSHEET")
     save_topic_history(res_p2['judul'], res_p2['kategori'])
 
-    # -------------------------------------------------------------------------
-    # PRODUK 3: PDF BUKU MEWARNAI (COLORING BOOK)
-    # -------------------------------------------------------------------------
+    # PRODUK 3: PDF BUKU MEWARNAI (LENGKAP SKETSA OUTLINE)
     print("AI Agent membuat Produk 3 (PDF Buku Mewarnai)...")
     res_p3 = generate_coloring_product()
     pdf_p3 = f"Prod3_Coloring_{timestamp}.pdf"
     cover_p3 = f"Cover_P3_{timestamp}.jpg"
-    
     c_file3 = generate_image(res_p3['judul'], cover_p3, style_type="coloring", width=800, height=500)
     create_pdf(pdf_p3, res_p3['judul'], res_p3['kategori'], res_p3['isi_ebook'], c_file3, is_coloring=True)
     send_to_telegram(pdf_p3, c_file3, res_p3, tag="PRODUK 3: PDF MEWARNAI")
     save_topic_history(res_p3['judul'], res_p3['kategori'])
 
-    print("Selesai! 3 Produk PDF (Ebook, Spreadsheet, dan Buku Mewarnai) berhasil dikirim ke Telegram.")
+    print("Selesai! 3 Produk PDF materi panjang & gambar mewarnai lengkap telah dikirim ke Telegram.")
