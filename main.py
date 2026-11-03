@@ -39,24 +39,28 @@ def save_topic_history(topic, product_type):
 
 def generate_image(prompt_text, filename, style_type="normal", width=800, height=800):
     if style_type == "coloring_outline":
-        # Prompt khusus sketsa hitam putih
         base_prompt = f"Black and white coloring book page of {prompt_text}, clean thick outline vector line art, no shading, pure white background, kid friendly"
     elif style_type == "coloring_reference":
-        # Prompt khusus gambar referensi berwarna ceria
         base_prompt = f"Cute cartoon 2d vector flat color illustration of {prompt_text}, white background, vibrant colors, kids style design, high quality"
     else:
-        # Prompt cover biasa
         base_prompt = f"Professional digital cover illustration for '{prompt_text}', modern clean design, high resolution 3d graphic"
         
     encoded_prompt = urllib.parse.quote(base_prompt)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
     
+    # PERBAIKAN: Tambahkan Headers User-Agent agar tidak diblokir server
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    
     try:
-        response = requests.get(image_url, timeout=40)
+        response = requests.get(image_url, headers=headers, timeout=45)
         if response.status_code == 200:
             with open(filename, 'wb') as f:
                 f.write(response.content)
             return filename
+        else:
+            print(f"Error {response.status_code} saat download gambar {filename}")
     except Exception as e:
         print(f"Gagal generate gambar ({filename}): {e}")
     return None
@@ -65,19 +69,16 @@ def generate_image(prompt_text, filename, style_type="normal", width=800, height
 # ENGINE PDF KHUSUS BUKU MEWARNAI (WORKSHEET LAYOUT)
 # =============================================================================
 def draw_dashed_border(canvas, doc):
-    """Fungsi untuk menggambar garis putus-putus di pinggir kertas (Worksheet style)"""
     canvas.saveState()
-    canvas.setDash(6, 4) # Ukuran garis putus-putus
+    canvas.setDash(6, 4)
     canvas.setLineWidth(2)
     canvas.setStrokeColor(colors.black)
-    # roundRect(x, y, width, height, radius)
     canvas.roundRect(20, 20, letter[0]-40, letter[1]-40, 15)
     canvas.restoreState()
 
 def create_coloring_worksheet(filename, data):
     doc = BaseDocTemplate(filename, pagesize=letter)
     
-    # Setup frame agar teks tidak menabrak garis border
     frame = Frame(40, 40, letter[0]-80, letter[1]-80, id='normal')
     template = PageTemplate(id='worksheet', frames=frame, onPage=draw_dashed_border)
     doc.addPageTemplates([template])
@@ -85,58 +86,74 @@ def create_coloring_worksheet(filename, data):
     story = []
     styles = getSampleStyleSheet()
     
-    title_style = ParagraphStyle('Title', fontSize=32, alignment=1, spaceAfter=8)
-    sub_style = ParagraphStyle('Sub', fontSize=12, alignment=1, spaceAfter=25, textColor=colors.HexColor("#333333"))
-    desc_style = ParagraphStyle('Desc', fontSize=9, alignment=1, leading=12)
+    # PERBAIKAN: Leading ditambahkan agar teks tidak bertumpuk
+    title_style = ParagraphStyle('Title', fontSize=32, leading=38, alignment=1, spaceAfter=15)
+    sub_style = ParagraphStyle('Sub', fontSize=12, leading=16, alignment=1, spaceAfter=25, textColor=colors.HexColor("#333333"))
+    desc_style = ParagraphStyle('Desc', fontSize=10, leading=14, alignment=0)
     
-    # Generate Halaman Mewarnai Berdasarkan Data JSON
     for idx, page in enumerate(data.get('halaman_mewarnai', [])):
         # 1. HEADER
         story.append(Paragraph('<font color="#2CA02C"><b>MARI</b></font> <font color="#FFB300"><b>MEWARNAI !</b></font>', title_style))
         story.append(Paragraph('<b>Lanjutkan Huruf yang terpotong dibawah yaa!</b>', sub_style))
+        story.append(Spacer(1, 10))
         
-        # 2. GENERATE 2 GAMBAR (BERWARNA & OUTLINE)
+        # 2. DOWNLOAD GAMBAR
         col_img_name = f"color_ref_{idx}.jpg"
         out_img_name = f"outline_bw_{idx}.jpg"
         
-        generate_image(page['nama_objek'], col_img_name, "coloring_reference", 300, 300)
-        generate_image(page['nama_objek'], out_img_name, "coloring_outline", 600, 600)
+        generate_image(page['nama_objek'], col_img_name, "coloring_reference", 400, 400)
+        generate_image(page['nama_objek'], out_img_name, "coloring_outline", 800, 800)
         
-        # 3. TOP SECTION (Huruf, Deskripsi, dan Gambar Referensi)
-        letter_p = Paragraph(f"<font size=42><b>{page['huruf']}</b></font>", styles['Normal'])
+        # 3. TOP SECTION
+        letter_p = Paragraph(f"<font size=48><b>{page['huruf']}</b></font>", styles['Normal'])
         desc_p = Paragraph(page['deskripsi'], desc_style)
         
-        left_text_table = Table([[letter_p, desc_p]], colWidths=[60, 160])
-        left_text_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+        left_text_table = Table([[letter_p, desc_p]], colWidths=[70, 180])
+        left_text_table.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('ALIGN', (0,0), (0,-1), 'LEFT')
+        ]))
         
-        img_col = Image(col_img_name, width=130, height=130) if os.path.exists(col_img_name) else Paragraph("Img Error")
+        # Cek ketersediaan gambar referensi
+        if os.path.exists(col_img_name):
+            img_col = Image(col_img_name, width=130, height=130)
+        else:
+            img_col = Paragraph("Gambar Referensi Gagal")
+            
         img_col_table = Table([[img_col]])
         img_col_table.setStyle(TableStyle([
-            ('BOX', (0,0), (-1,-1), 1.5, colors.black), # Bingkai kotak untuk gambar referensi
+            ('BOX', (0,0), (-1,-1), 1.5, colors.black),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
-            ('TOPPADDING', (0,0), (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
         ]))
         
         top_layout = Table([[left_text_table, img_col_table]], colWidths=[310, 170])
-        top_layout.setStyle(TableStyle([('ALIGN', (1,0), (1,0), 'RIGHT'), ('VALIGN', (0,0), (-1,-1), 'TOP')]))
+        top_layout.setStyle(TableStyle([
+            ('ALIGN', (1,0), (1,0), 'RIGHT'), 
+            ('VALIGN', (0,0), (-1,-1), 'TOP')
+        ]))
         
         story.append(top_layout)
-        story.append(Spacer(1, 15))
+        story.append(Spacer(1, 20))
         
-        # 4. MIDDLE SECTION (Gambar Sketsa Utama)
-        img_out = Image(out_img_name, width=380, height=380) if os.path.exists(out_img_name) else Paragraph("Img Error")
+        # 4. MIDDLE SECTION (Gambar Sketsa)
+        if os.path.exists(out_img_name):
+            img_out = Image(out_img_name, width=320, height=320)
+        else:
+            img_out = Paragraph("Gambar Sketsa Gagal Diunduh")
+            
         img_out_table = Table([[img_out]], colWidths=[480])
         img_out_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER')]))
         story.append(img_out_table)
-        story.append(Spacer(1, 15))
+        story.append(Spacer(1, 25))
         
-        # 5. BOTTOM SECTION (Kotak Tebak Kata)
-        puzzle_p = Paragraph(f"<font size=32><b>{page['soal_kata']}</b></font>", ParagraphStyle('puz', alignment=1))
-        puzzle_table = Table([[puzzle_p]], colWidths=[300], rowHeights=[70])
+        # 5. BOTTOM SECTION
+        puzzle_p = Paragraph(f"<font size=34><b>{page['soal_kata']}</b></font>", ParagraphStyle('puz', alignment=1))
+        puzzle_table = Table([[puzzle_p]], colWidths=[350], rowHeights=[80])
         puzzle_table.setStyle(TableStyle([
-            ('BOX', (0,0), (-1,-1), 2.5, colors.black),
+            ('BOX', (0,0), (-1,-1), 2, colors.black),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
         ]))
@@ -221,7 +238,7 @@ def create_pdf(filename, title, category, content, cover_img_path):
     doc.build(story)
 
 # =============================================================================
-# PRODUK 1 & 2: EBOOK & SPREADSHEET (Sama seperti sebelumnya)
+# PRODUK 1 & 2: EBOOK & SPREADSHEET
 # =============================================================================
 def generate_ebook_product():
     history = get_topic_history()
@@ -231,7 +248,7 @@ def generate_ebook_product():
 
     prompt = f"""
     Kamu adalah penulis buku digital profesional.
-    Buatlah Ebook/Panduan LENGKAP tentang: {selected_theme}.
+    Buatlah Ebook LENGKAP tentang: {selected_theme}.
     Hindari topik ini: {json.dumps(past_topics)}.
     Tulis minimal 5 BAB LENGKAP dan panjang minimal 1000 kata.
 
@@ -258,7 +275,7 @@ def generate_spreadsheet_product():
     Kamu adalah pakar Template Spreadsheet.
     Riset 1 ide template di bawah sub-tema: {selected_theme}.
     Hindari topik ini: {json.dumps(past_topics)}.
-    Jelaskan Struktur Sheet dan RUMUS KUNCI (VLOOKUP, IF, dll).
+    Jelaskan Struktur Sheet dan RUMUS KUNCI.
 
     Format JSON ketat:
     {{
@@ -282,7 +299,7 @@ def generate_coloring_product():
 
     prompt = f"""
     Kamu adalah pembuat Buku Mewarnai Digital Anak.
-    Pilih 1 tema Mewarnai edukatif (Hewan, Kendaraan, Sayuran, Dll).
+    Pilih 1 tema Mewarnai edukatif (contoh: Buah, Hewan, Sayuran, Kendaraan).
     Hindari topik ini: {json.dumps(past_topics)}.
 
     Buat 5 soal halaman mewarnai. Kembalikan data dalam struktur ARRAY objek JSON ketat.
@@ -300,12 +317,6 @@ def generate_coloring_product():
                 "nama_objek": "Ayam",
                 "deskripsi": "Ayam adalah salah satu binatang bersayap namun ia lebih suka berjalan dengan kaki.",
                 "soal_kata": "AY_ _ _"
-            }},
-            {{
-                "huruf": "Bb",
-                "nama_objek": "Bebek",
-                "deskripsi": "Bebek suka berenang di air dan memiliki paruh pipih.",
-                "soal_kata": "BE_ _ _"
             }}
         ]
     }}
@@ -355,10 +366,7 @@ if __name__ == "__main__":
     pdf_p3 = f"Prod3_Worksheet_{timestamp}.pdf"
     cover_p3 = f"Cover_P3_{timestamp}.jpg"
     c_file3 = generate_image(res_p3['judul'], cover_p3, style_type="normal", width=800, height=500)
-    
-    # MENGGUNAKAN ENGINE WORKSHEET KHUSUS
     create_coloring_worksheet(pdf_p3, res_p3)
-    
     send_to_telegram(pdf_p3, c_file3, res_p3, tag="PRODUK 3: PDF MEWARNAI")
     save_topic_history(res_p3['judul'], res_p3['kategori'])
 
