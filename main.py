@@ -42,7 +42,7 @@ def generate_market_research_and_content():
     3. Buat konten ringkas namun padat produk digital tersebut (minimal 3 bab/bagian utama).
     4. Buat copywriting deskripsi penjualan untuk toko Lynk.id.
 
-    Kembalikan output DALAM FORMAT JSON SANGAT KETAT dengan struktur persis seperti berikut:
+    Kembalikan output DALAM FORMAT JSON SANGAT KETAT dengan key persis seperti berikut:
     {{
         "judul": "Judul Produk Digital",
         "kategori": "Kategori",
@@ -53,13 +53,13 @@ def generate_market_research_and_content():
     }}
     """
 
-    # Menggunakan model Llama 3.3 70B resmi dari Groq dengan paksaan format JSON
+    # Menggunakan model rekomendasi terbaru dari dokumentasi resmi Groq
     response = client.chat.completions.create(
-        model="qwen-2.5-coder-32b",
+        model="qwen/qwen3.8-27b",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.5,
         max_tokens=4096,
-        response_format={"type": "json_object"}  # Memaksa output JSON murni yang valid
+        response_format={"type": "json_object"}  # Menjamin JSON tidak terputus/corrupt
     )
     
     output_text = response.choices[0].message.content.strip()
