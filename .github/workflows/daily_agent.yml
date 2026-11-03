@@ -2,8 +2,10 @@ name: Daily AI Digital Product Agent
 
 on:
   schedule:
-    # Berjalan otomatis setiap jam 07:00 WIB (00:00 UTC)
-    - cron: '0 0 * * *'
+    # Berjalan 2 kali sehari:
+    # 00:00 UTC = 07:00 WIB (Pagi)
+    # 10:00 UTC = 17:00 WIB (Sore)
+    - cron: '0 0,10 * * *'
   workflow_dispatch:
 
 permissions:
