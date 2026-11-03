@@ -39,10 +39,10 @@ def generate_market_research_and_content():
     Tugasmu:
     1. Cari 1 ide topik produk digital yang sedang laris (Ebook / Cheatsheet / Guide) untuk segmen pekerja kantor, IT support, atau produktivitas.
     2. Hindari topik yang sudah pernah dibuat ini: {json.dumps(past_topics)}
-    3. Buat konten lengkap produk digital tersebut (minimal 3 bab/bagian utama).
+    3. Buat konten ringkas namun padat produk digital tersebut (minimal 3 bab/bagian utama).
     4. Buat copywriting deskripsi penjualan untuk toko Lynk.id.
 
-    Kembalikan output DALAM FORMAT JSON SANGAT KETAT seperti berikut tanpa penjelasan tambahan:
+    Kembalikan output DALAM FORMAT JSON SANGAT KETAT dengan struktur persis seperti berikut:
     {{
         "judul": "Judul Produk Digital",
         "kategori": "Kategori",
@@ -51,22 +51,18 @@ def generate_market_research_and_content():
         "isi_ebook": "Isi materi lengkap dalam bentuk teks berpola rapi...",
         "deskripsi_lynk": "Teks deskripsi penjualan untuk Lynk.id"
     }}
-    Jawab HANYA string JSON murni.
     """
 
+    # Menggunakan model Llama 3.3 70B resmi dari Groq dengan paksaan format JSON
     response = client.chat.completions.create(
-        model="openai/gpt-oss-20b",
+        model="qwen-2.5-coder-32b",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.7
+        temperature=0.5,
+        max_tokens=4096,
+        response_format={"type": "json_object"}  # Memaksa output JSON murni yang valid
     )
     
     output_text = response.choices[0].message.content.strip()
-    
-    # Cleaning jika model menambahkan tag markdown ```json
-    if output_text.startswith("```"):
-        lines = output_text.split("\n")
-        output_text = "\n".join(lines[1:-1])
-        
     return json.loads(output_text)
 
 def create_pdf(filename, title, content):
