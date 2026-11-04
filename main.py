@@ -3,7 +3,7 @@ import json
 import urllib.parse
 import requests
 import random
-import time  # Ditambahkan untuk memberi jeda (anti-blokir)
+import time
 from datetime import datetime
 from google import genai
 from google.genai import types
@@ -47,25 +47,32 @@ def generate_image(prompt_text, filename, style_type="normal", width=800, height
         base_prompt = f"Professional digital cover illustration for '{prompt_text}', modern clean design, high resolution 3d graphic"
         
     encoded_prompt = urllib.parse.quote(base_prompt)
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
+    # PERBAIKAN 1: Tambahkan random seed agar URL selalu unik (bypass cache/blokir server)
+    seed = random.randint(1, 100000)
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/jpeg, image/png, */*'
     }
     
-    try:
-        # Memberikan jeda 3 detik agar server gambar tidak memblokir (Error 402)
-        time.sleep(3)
-        
-        response = requests.get(image_url, headers=headers, timeout=45)
-        if response.status_code == 200:
-            with open(filename, 'wb') as f:
-                f.write(response.content)
-            return filename
-        else:
-            print(f"Error {response.status_code} saat download gambar {filename}")
-    except Exception as e:
-        print(f"Gagal generate gambar ({filename}): {e}")
+    # PERBAIKAN 2: Sistem Auto-Retry (Mencoba 3x jika gagal/error 402/429)
+    for attempt in range(3):
+        try:
+            time.sleep(5) # Jeda aman 5 detik
+            response = requests.get(image_url, headers=headers, timeout=60)
+            if response.status_code == 200:
+                with open(filename, 'wb') as f:
+                    f.write(response.content)
+                return filename
+            else:
+                print(f"Percobaan {attempt+1} gagal: Status {response.status_code} untuk {filename}")
+                time.sleep(3) # Jeda tambahan sebelum mengulang
+        except Exception as e:
+            print(f"Percobaan {attempt+1} gagal (Exception): {e}")
+            time.sleep(3)
+            
+    print(f"Gagal total men-download gambar {filename} setelah 3 percobaan.")
     return None
 
 # =============================================================================
@@ -86,11 +93,13 @@ def create_coloring_worksheet(filename, data):
     doc.addPageTemplates([template])
     
     story = []
-    styles = getSampleStyleSheet()
     
     title_style = ParagraphStyle('Title', fontSize=32, leading=38, alignment=1, spaceAfter=15)
     sub_style = ParagraphStyle('Sub', fontSize=12, leading=16, alignment=1, spaceAfter=25, textColor=colors.HexColor("#333333"))
     desc_style = ParagraphStyle('Desc', fontSize=10, leading=14, alignment=0)
+    
+    # PERBAIKAN 3: Leading disesuaikan (55) untuk Font Size 48 agar tidak nabrak ke bawah
+    letter_style = ParagraphStyle('BigLetter', fontSize=48, leading=55, alignment=1)
     
     for idx, page in enumerate(data.get('halaman_mewarnai', [])):
         story.append(Paragraph('<font color="#2CA02C"><b>MARI</b></font> <font color="#FFB300"><b>MEWARNAI !</b></font>', title_style))
@@ -100,30 +109,30 @@ def create_coloring_worksheet(filename, data):
         col_img_name = f"color_ref_{idx}.jpg"
         out_img_name = f"outline_bw_{idx}.jpg"
         
+        # Download gambar
         generate_image(page['nama_objek'], col_img_name, "coloring_reference", 400, 400)
         generate_image(page['nama_objek'], out_img_name, "coloring_outline", 800, 800)
         
-        letter_p = Paragraph(f"<font size=48><b>{page['huruf']}</b></font>", styles['Normal'])
+        # Susun Layout Atas
+        letter_p = Paragraph(f"<b>{page['huruf']}</b>", letter_style)
         desc_p = Paragraph(page['deskripsi'], desc_style)
         
         left_text_table = Table([[letter_p, desc_p]], colWidths=[70, 180])
         left_text_table.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('ALIGN', (0,0), (0,-1), 'LEFT')
+            ('ALIGN', (0,0), (0,-1), 'CENTER')
         ]))
         
         if os.path.exists(col_img_name):
             img_col = Image(col_img_name, width=130, height=130)
         else:
-            img_col = Paragraph("Img Error")
+            img_col = Paragraph("Gambar Referensi Gagal", ParagraphStyle('err', alignment=1))
             
-        img_col_table = Table([[img_col]])
+        img_col_table = Table([[img_col]], colWidths=[140], rowHeights=[140])
         img_col_table.setStyle(TableStyle([
             ('BOX', (0,0), (-1,-1), 1.5, colors.black),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
         ]))
         
         top_layout = Table([[left_text_table, img_col_table]], colWidths=[310, 170])
@@ -135,16 +144,21 @@ def create_coloring_worksheet(filename, data):
         story.append(top_layout)
         story.append(Spacer(1, 20))
         
+        # Susun Layout Tengah (Gambar Outline)
         if os.path.exists(out_img_name):
             img_out = Image(out_img_name, width=320, height=320)
         else:
-            img_out = Paragraph("Img Error")
+            img_out = Paragraph("Gambar Sketsa Mewarnai Gagal Diunduh", ParagraphStyle('err2', alignment=1))
             
-        img_out_table = Table([[img_out]], colWidths=[480])
-        img_out_table.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER')]))
+        img_out_table = Table([[img_out]], colWidths=[480], rowHeights=[330])
+        img_out_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+        ]))
         story.append(img_out_table)
-        story.append(Spacer(1, 25))
+        story.append(Spacer(1, 15))
         
+        # Susun Layout Bawah (Puzzle)
         puzzle_p = Paragraph(f"<font size=34><b>{page['soal_kata']}</b></font>", ParagraphStyle('puz', alignment=1))
         puzzle_table = Table([[puzzle_p]], colWidths=[350], rowHeights=[80])
         puzzle_table.setStyle(TableStyle([
@@ -285,7 +299,7 @@ def generate_spreadsheet_product():
     return json.loads(response.text.strip())
 
 # =============================================================================
-# PRODUK 3: BUKU MEWARNAI (PERBAIKAN FORMAT OBJEK JSON)
+# PRODUK 3: BUKU MEWARNAI (FORMAT JSON TERSTRUKTUR)
 # =============================================================================
 def generate_coloring_product():
     history = get_topic_history()
@@ -293,7 +307,7 @@ def generate_coloring_product():
 
     prompt = f"""
     Kamu adalah pembuat Buku Mewarnai Digital Anak.
-    Pilih 1 tema Mewarnai edukatif (contoh: Buah, Hewan, Sayuran, Kendaraan).
+    Pilih 1 tema Mewarnai edukatif (contoh: Sayuran, Kendaraan, Luar Angkasa).
     Hindari topik ini: {json.dumps(past_topics)}.
 
     Buat 5 soal halaman mewarnai. 
@@ -308,10 +322,10 @@ def generate_coloring_product():
         "deskripsi_lynk": "Buku mewarnai edukatif interaktif",
         "halaman_mewarnai": [
             {{
-                "huruf": "Aa",
-                "nama_objek": "Ayam",
-                "deskripsi": "Ayam adalah binatang bersayap namun suka berjalan dengan kaki.",
-                "soal_kata": "AY_ _ _"
+                "huruf": "Bb",
+                "nama_objek": "Brokoli",
+                "deskripsi": "Brokoli adalah sayuran hijau yang bentuknya mirip seperti pohon kecil.",
+                "soal_kata": "B R _ K _ L I"
             }}
         ]
     }}
@@ -340,7 +354,6 @@ if __name__ == "__main__":
     
     print("AI Agent membuat Produk 1 (PDF Ebook Panjang)...")
     res_p1 = generate_ebook_product()
-    # Perlindungan error jika AI mengembalikan format list (array) secara tidak sengaja
     if isinstance(res_p1, list): res_p1 = res_p1[0] 
     
     pdf_p1 = f"Prod1_Ebook_{timestamp}.pdf"
@@ -350,7 +363,6 @@ if __name__ == "__main__":
     send_to_telegram(pdf_p1, c_file1, res_p1, tag="PRODUK 1: PDF EBOOK")
     save_topic_history(res_p1['judul'], res_p1['kategori'])
     
-    # Jeda ekstra sebelum produk kedua
     time.sleep(10)
     
     print("AI Agent membuat Produk 2 (PDF Spreadsheet Logic)...")
@@ -364,12 +376,10 @@ if __name__ == "__main__":
     send_to_telegram(pdf_p2, c_file2, res_p2, tag="PRODUK 2: SPREADSHEET")
     save_topic_history(res_p2['judul'], res_p2['kategori'])
 
-    # Jeda ekstra sebelum produk ketiga
-    time.sleep(10)
+    time.sleep(15)
 
     print("AI Agent membuat Produk 3 (PDF Worksheet Mewarnai)...")
     res_p3 = generate_coloring_product()
-    # PERLINDUNGAN: Memaksa mengambil index [0] jika output Gemini masih berupa List/Array
     if isinstance(res_p3, list): res_p3 = res_p3[0]
     
     pdf_p3 = f"Prod3_Worksheet_{timestamp}.pdf"
@@ -381,4 +391,4 @@ if __name__ == "__main__":
     send_to_telegram(pdf_p3, c_file3, res_p3, tag="PRODUK 3: PDF MEWARNAI")
     save_topic_history(res_p3['judul'], res_p3['kategori'])
 
-    print("Selesai! 3 Produk PDF dengan layout Worksheet Premium berhasil dibuat.")
+    print("Selesai! Semua file berhasil dieksekusi.")
